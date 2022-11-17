@@ -25,27 +25,37 @@ int main(){
     while(1){
         printf("%s> ", getcwd(cwd, 100));
         off = scanf("%[^\n]%*c", buf);
-        pid_t pid = fork();
         
-        if (pid == 0){   //child process
-            
-            char **argv = (char**)malloc(100);
-            argv = split_buf(buf);
-           
-            // clean argv[0]
-            rm_ws(argv[0], '/');
-            if (argv[0][0] == '.')
-                argv[0] = &argv[0][1];
+        char **argv = (char**)malloc(100);
+        argv = split_buf(buf);
+
+        // this is cd
+        if(strcmp(argv[0], "cd") == 0){
+            chdir(argv[1]);
+            printf("%s\n", getcwd(pth_buf, 100));
+            goto bottom;
+        } 
+
+        pid_t pid = fork();
+        // child process
+        if (pid == 0){              
+              
             //first check bin
             snprintf(pth_buf, 100, "/bin/%s", argv[0]);
             execv(pth_buf, argv);
-            //erno seems to return 2 when there is no program to run in bin
+            //then check this directory
             if (errno == 2){
-                //snprintf(pth_buf, 100, "%s/%s", getcwd(cwd, 100), argv[0]);
                 snprintf(pth_buf, 100, "./%s", argv[0]);
                 execv(pth_buf, argv);
             } 
-            printf("%d\n", errno);
+            //finally check given path
+            if (errno == 2){
+                execv(argv[0], argv);
+            }
+           //if nothing works, then print error 
+            if (errno == 2){
+                perror("program does not exists");
+            }
             exit(127);
         }
         else{   //parent process
@@ -53,6 +63,7 @@ int main(){
             waitpid(pid, 0, 0);
         }
 
+bottom:
         if (off != 1)
             break;
     }
