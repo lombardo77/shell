@@ -8,7 +8,7 @@
 
 char** split_buf(char* buf);
 void print_array(int arr_len, char** arr);
-void rm_ws(char* s, char a);
+char* rm_ws(char* str);
 char* rm_wsb(char* s, char a);
 
 //to do
@@ -28,7 +28,7 @@ int main(){
         off = scanf("%[^\n]%*c", buf);
         
         char **argv = (char**)malloc(100);
-     ;   argv = split_buf(buf);
+        argv = split_buf(buf);
 
         // this is cd
         if(strcmp(argv[0], "cd") == 0){
@@ -94,11 +94,14 @@ char** split_buf(char* buf){
     strcpy(buf_cpy0, buf);
 
     buf_cpy = rm_wsb(buf_cpy0, ' ');
-   
+    
+   // places buf_cpy into argv[0] 
     argv[0] = buf_cpy;
     for (int i = 0; i < 100; i ++){
 
         // if the string is "echo 'hello world'"
+        // places null terminator at last space char
+        // e.g., "hello,         world" -> "hello,       '\0'world"
         if (buf_cpy[i] == ' ' && buf_cpy[i + 1] != ' '){
             
             spaces ++;
@@ -114,7 +117,7 @@ char** split_buf(char* buf){
     for(int i =0; i < spaces + 1 ; i++){
         char* token_cpy = (char*)malloc(strlen(argv[i]));
         strcpy(token_cpy, argv[i]);
-        rm_ws(token_cpy, ' ');
+        token_cpy = rm_ws(token_cpy);
         argv[i] = token_cpy;
     }
 
@@ -123,16 +126,33 @@ char** split_buf(char* buf){
     return argv;
 }
 
+char* rm_ws(char *str)
+{
+    int nsc = 0;
+ 
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        if (str[i] != ' ')
+        {
+            str[nsc] = str[i];
+            nsc++;        }    
+    }
+    
+    str[nsc] = '\0';
+    return str;
+}
+
 
 //removes white space in string
-void rm_ws(char* s, char a) {
-    char* d = s;
-    do {
-        while (*d == a) {
-            ++d;
-        }
-    } while (*s++ = *d++);
-}
+//void rm_ws(char* s, char a) {
+//    char* d = s;
+//    do {
+//            r+d;
+//        }
+//    } while (*s++ = *d++);
+//}
+
+
 
 //removes white space in beg of string
 char* rm_wsb(char* s, char a) {
