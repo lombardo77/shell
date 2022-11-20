@@ -6,8 +6,14 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include "buffer_manipulation.h"
+#include <signal.h>
 
 #define SIZE 256
+
+
+void sigint_handler(int signo);
+
+struct pid_
 
 //to do
 // 1. make sure i can free() malloced blocks
@@ -15,6 +21,9 @@
 int main(){
     char* buf = (char*)malloc(SIZE);
     char* pth_buf = (char*)malloc(SIZE);
+
+    //signals
+    signal(SIGINT, sigint_handler);
 
     int off = 0;
     //shell loop
@@ -34,7 +43,7 @@ int main(){
         if(strcmp(argv[0], "cd") == 0){
             chdir(argv[1]);
         } 
-        
+ 
         // run program from command line
         else{
             //first create child process
@@ -69,7 +78,7 @@ int main(){
             } 
             //parent process
             else{
-                freeargv(argv);  
+                freeargv(argv); 
                 free(argv);
                 waitpid(pid, 0, 0);
             }
@@ -82,6 +91,18 @@ int main(){
     free(pth_buf);
 
     return 0;
+}
+
+//gets pid from job list
+pid_t get_pid(void){
+    
+}
+
+// SIGINT handler
+void sigint_handler(int signo) {
+    printf("Caught SIGINT\n");
+    pid_t pid = get_pid();
+    kill(SIGINT, pid);
 }
 
 
