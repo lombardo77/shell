@@ -9,11 +9,10 @@
 #include <signal.h>
 
 #define SIZE 256
-
+#define ARG argv[0]
 
 void sigint_handler(int signo);
-
-struct pid_
+void sigtstp_handler(int signo);
 
 //to do
 // 1. make sure i can free() malloced blocks
@@ -21,9 +20,14 @@ struct pid_
 int main(){
     char* buf = (char*)malloc(SIZE);
     char* pth_buf = (char*)malloc(SIZE);
+    int bg = 0;
+
+    // numbe of words in argv
+    extern int words;
 
     //signals
     signal(SIGINT, sigint_handler);
+    signal(SIGTSTP, sigtstp_handler);
 
     int off = 0;
     //shell loop
@@ -31,6 +35,8 @@ int main(){
     {
         //command line prompt "> "
         printf("> ");
+        fflush(stdout);
+        
         off = scanf("%[^\n]%*c", buf);
         
         // pointer to argument array
@@ -39,10 +45,15 @@ int main(){
         // generate argument array with raw command line input
         argv = gen_argv(buf);
 
+        if(words > 1 && !strcmp(argv[1], "&"))
+            bg = 1;
+        
         // this is cd
-        if(strcmp(argv[0], "cd") == 0){
+        if(!strcmp(ARG, "cd"))
             chdir(argv[1]);
-        } 
+        
+        else if (!strcmp(ARG, "exit"))
+            exit(127); 
  
         // run program from command line
         else{
@@ -51,36 +62,48 @@ int main(){
 
             // child process
             if (pid == 0){              
-                  
+                signal(SIGINT, SIG_DFL); 
                 //first check bin/*
-                snprintf(pth_buf, SIZE, "/bin/%s", argv[0]);
+                snprintf(pth_buf, SIZE, "/bin/%s", ARG);
+                // from here on the program is replaced
                 execv(pth_buf, argv);
-
                 //then check current directory
-                if (errno == 2){
-                    snprintf(pth_buf, SIZE, "./%s", argv[0]);
+                if (errno == 2)
+                {
+                    snprintf(pth_buf, SIZE, "./%s", ARG);
                     execv(pth_buf, argv);
                 } 
                 // finally check given path
-                if (errno == 2){
+                if (errno == 2)
+                {
                     execv(argv[0], argv);
                 }
 
                //if nothing works, then print error 
-                if (errno == 2){
+                if (errno == 2)
+                {
+                    free(buf);
+                    free(pth_buf);
+                    freeargv(argv);
+                    free(argv);
+
                     perror("command not found");
                 }
-                free(buf);
-                free(pth_buf);
-                freeargv(argv);
-                free(argv);
+    
+                //free(buf);
+                //free(pth_buf);
+                //freeargv(argv);
+                //free(argv);
                 exit(127);
             } 
             //parent process
-            else{
+            else
+            {
+                fflush(stdout);
                 freeargv(argv); 
                 free(argv);
-                waitpid(pid, 0, 0);
+                if(!bg)
+                    waitpid(pid, 0, 0);
             }
         }
         if (off != 1)
@@ -93,16 +116,16 @@ int main(){
     return 0;
 }
 
-//gets pid from job list
-pid_t get_pid(void){
-    
-}
-
 // SIGINT handler
 void sigint_handler(int signo) {
-    printf("Caught SIGINT\n");
-    pid_t pid = get_pid();
-    kill(SIGINT, pid);
+    printf("\n");
+    fflush(stdout);
+}
+
+// SIGSTP handler
+void sigtstp_handler(int signo) {
+    printf("\n");
+    fflush(stdout);
 }
 
 

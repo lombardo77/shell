@@ -8,6 +8,8 @@
 
 #define SIZE 100
 
+int words = 0;
+
 //removes ws from string
 char* rm_ws(char *str)
 {
@@ -97,6 +99,7 @@ char** gen_argv(char* buf){
 
     //finally add NULL at the end of argv
     argv[spaces + 1] = NULL;
+    words = spaces + 1;
 
     //free buf_cpy0
     free(buf_cpy0);
