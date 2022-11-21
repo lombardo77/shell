@@ -55,8 +55,6 @@ int main(){
         // generate argument array with raw command line input
         argv = gen_argv(buf);
 
-        i++;
-
         if(words > 1 && !strcmp(argv[1], "&"))
             bg = 1;
         else 
@@ -75,6 +73,10 @@ int main(){
             free(pth_buf);
             free_list(head);
             exit(127); 
+        }
+        else if(!strcmp(ARG, "kill"))
+        {
+            kill(atoi(argv[1]), 1);
         }
  
         // run program from command line
@@ -123,6 +125,7 @@ int main(){
                     waitpid(pid, 0, 0);
                 else
                 { // need to allocate on the heap!
+                    i ++;
                     char* name = (char*)malloc(strlen(ARG));
                     strcpy(name, ARG);
 
@@ -137,6 +140,7 @@ int main(){
                     new_job->data = child_job;
 
                     head = add(head, new_job);
+                    printf("[%d] %d\n",i, pid);
                 }
                 fflush(stdout);
                 freeargv(argv); 
