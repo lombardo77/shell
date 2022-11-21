@@ -8,13 +8,12 @@ typedef struct job{
     int index;
 }job;
 
-
  
 typedef struct node{
     struct node* next;
     job* data;
-
 }node;
+
 
 node* add(node* head, node* data){
     node* tmp = head;
@@ -26,13 +25,13 @@ node* add(node* head, node* data){
     return head;
 }
 
+
 node* rm_node(node* head, int pid){
     node* tmp = head;
     node* prev = NULL;
 
     while(tmp != NULL)
     {
-        
         if (tmp->data->pid == pid)
         {
             if (prev == NULL)
@@ -48,13 +47,13 @@ node* rm_node(node* head, int pid){
         prev = tmp;
         tmp = tmp->next;
     }
-
 }
+
 
 void print_list(node* head){
     node* tmp = head;
     int i =0;
-    while (tmp->next != NULL && i != 3)
+    while (tmp->next != NULL)
     {
         printf("[%d] ", tmp->data->index);
         printf("%s ", tmp->data->name);
@@ -67,8 +66,35 @@ void print_list(node* head){
         printf("pid: %d \n", tmp->data->pid);
 }
 
+void free_list(node* head)
+{
+    node* tmp = head;
+    node* nxt = tmp->next;
+    while(tmp->next != NULL)
+    {
+        printf("free: %s\n", tmp->data->name);
+        free(tmp->data->name);
+        free(tmp->data);
+        free(tmp);
+        tmp = nxt;
+        nxt = nxt->next;
+    }
+    free(tmp->data->name);
+    free(tmp->data);
+    free(tmp);
+}
 
-
+node* new_list()
+{
+    job* a = malloc(sizeof(job));
+    a->pid = 0;
+    a->name = malloc(1);
+    a->index = 0;
+    node* head = malloc(sizeof(node));
+    head->next = NULL;
+    head->data = a;
+    return head;
+}
 
 
 

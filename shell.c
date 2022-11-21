@@ -28,8 +28,9 @@ int main(){
     int bg = 0;
     int i = 0;
 
-    job a = {0, "null", 0};
-    node head = {NULL, &a};
+    //job a = {0, "null", 0};
+    //node head = {NULL, &a};
+    node* head = new_list();
 
     // numbe of words in argv
     extern int words;
@@ -61,15 +62,20 @@ int main(){
         else 
             bg = 0;
         
-        // this is cd
+        // this is "cd"
         if(!strcmp(ARG, "cd"))
             chdir(argv[1]);
-        
-        else if(!strcmp(ARG, "jobs"))
-            print_list(&head);
-
+        // this is "jobs" 
+        else if(words == 1 && !strcmp(ARG, "jobs"))
+            print_list(head);
+        // this is "exit"
         else if (!strcmp(ARG, "exit"))
+        {   
+            free(buf);
+            free(pth_buf);
+            free_list(head);
             exit(127); 
+        }
  
         // run program from command line
         else{
@@ -107,44 +113,34 @@ int main(){
 
                     perror("command not found");
                 }
-    
-                //free(buf);
-                //free(pth_buf);
-                //freeargv(argv);
-                //free(argv);
+                
                 exit(127);
             } 
             //parent process
             else
             {
-                fflush(stdout);
-                //make copy of argv[0]
-                char* name = (char*)malloc(strlen(ARG));
-                strcpy(name, ARG);
-
-                freeargv(argv); 
-                free(argv);
-               
-               // need to allocate on the heap!!
-                job* child_job = (job*)malloc(sizeof(job));
-                child_job->pid = pid;
-                child_job->name = name;
-                child_job->index = i;
-
-                node* new_job = malloc(sizeof(node));
-
-                new_job->next = NULL;
-                new_job->data = child_job;
-
-                head = *add(&head, new_job);
-               
-                if (new_job->next == NULL)
-                  printf("hello!\n");
-                else 
-                  printf("%s\n", new_job->next->data->name); 
-
                 if(!bg)
                     waitpid(pid, 0, 0);
+                else
+                { // need to allocate on the heap!
+                    char* name = (char*)malloc(strlen(ARG));
+                    strcpy(name, ARG);
+
+                    job* child_job = (job*)malloc(sizeof(job));
+                    child_job->pid = pid;
+                    child_job->name = name;
+                    child_job->index = i;
+
+                    node* new_job = malloc(sizeof(node));
+
+                    new_job->next = NULL;
+                    new_job->data = child_job;
+
+                    head = add(head, new_job);
+                }
+                fflush(stdout);
+                freeargv(argv); 
+                free(argv);
             }
         }
         if (off != 1)

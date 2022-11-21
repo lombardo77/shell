@@ -15,8 +15,9 @@ typedef struct node{
 
 }node;
 
-void add(node* head, node* data);
+node* add(node* head, node* data);
 node* rm_node(node* head, int pid);
 void print_list(node* head);
-
+void free_list(node* head);
+node* new_list();
 #endif
