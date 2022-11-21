@@ -5,14 +5,19 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <errno.h>
-#include "buffer_manipulation.h"
 #include <signal.h>
+
+#include "buffer_manipulation.h"
+#include "joblists.h"
 
 #define SIZE 256
 #define ARG argv[0]
 
 void sigint_handler(int signo);
+void sigint_handle_child(int signo);
+
 void sigtstp_handler(int signo);
+void sigtstp_handle_child(int signo);
 
 //to do
 // 1. make sure i can free() malloced blocks
@@ -61,8 +66,10 @@ int main(){
             pid_t pid = fork();
 
             // child process
-            if (pid == 0){              
-                signal(SIGINT, SIG_DFL); 
+            if (pid == 0){         
+
+                signal(SIGINT, sigint_handle_child); 
+                signal(SIGTSTP, sigtstp_handle_child); 
                 //first check bin/*
                 snprintf(pth_buf, SIZE, "/bin/%s", ARG);
                 // from here on the program is replaced
@@ -102,8 +109,12 @@ int main(){
                 fflush(stdout);
                 freeargv(argv); 
                 free(argv);
+                job child = {pid, ARG, 1};
+                node head = {NULL, &child};
                 if(!bg)
                     waitpid(pid, 0, 0);
+                else
+                    print_list(&head);
             }
         }
         if (off != 1)
@@ -127,5 +138,18 @@ void sigtstp_handler(int signo) {
     printf("\n");
     fflush(stdout);
 }
+
+// SIGTSTP handles child
+void sigint_handle_child(int signo) {
+    printf("hello child\n");
+    fflush(stdout);
+}
+
+// SIGTSTP handles child
+void sigtstp_handle_child(int signo) {
+    printf("\n");
+    fflush(stdout);
+}
+
 
 
