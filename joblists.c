@@ -16,13 +16,14 @@ typedef struct node{
 
 }node;
 
-void add(node* head, node* data){
+node* add(node* head, node* data){
     node* tmp = head;
     while (tmp->next != NULL)
     {
         tmp = tmp->next;
     }
     tmp->next = data;
+    return head;
 }
 
 node* rm_node(node* head, int pid){
@@ -52,17 +53,43 @@ node* rm_node(node* head, int pid){
 
 void print_list(node* head){
     node* tmp = head;
-
-    while (tmp->next != NULL)
+    int i =0;
+    while (tmp->next != NULL && i != 3)
     {
-        printf("%d; ", tmp->data->pid);
-        printf("%s; ", tmp->data->name);
-        printf("%d\n", tmp->data->index);
+        printf("[%d] ", tmp->data->index);
+        printf("%s ", tmp->data->name);
+        printf("pid: %d \n", tmp->data->pid);
         tmp = tmp->next;
+        i++;
     }
-        printf("%d; ", tmp->data->pid);
-        printf("%s; ", tmp->data->name);
-        printf("%d\n", tmp->data->index);
+        printf("[%d] ", tmp->data->index);
+        printf("%s ", tmp->data->name);
+        printf("pid: %d \n", tmp->data->pid);
 }
 
 
+
+
+
+
+//int main(){
+//    job j0 = {90123, "A", 1};
+//    node head = {NULL, &j0};
+//
+//    job j1 = {2981, "B", 2}; 
+//    node n1 = {NULL, &j1}; 
+//    add(&head, &n1);
+//    
+//    job j2 = {2231, "C", 3}; 
+//    node n2 = {NULL, &j2}; 
+//    add(&head, &n2);
+//    
+//    job j3 = {23434, "d", 4}; 
+//    node n3 = {NULL, &j3}; 
+//    add(&head, &n3);
+//
+//
+//    print_list(&head);
+//
+//
+//}
