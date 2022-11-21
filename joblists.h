@@ -20,4 +20,5 @@ node* rm_node(node* head, int pid);
 void print_list(node* head);
 void free_list(node* head);
 node* new_list();
+int get_pid(node* head, int pid);
 #endif

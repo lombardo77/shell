@@ -25,7 +25,7 @@ node* add(node* head, node* data){
     return head;
 }
 
-
+//removes by pid
 node* rm_node(node* head, int pid){
     node* tmp = head;
     node* prev = NULL;
@@ -37,11 +37,21 @@ node* rm_node(node* head, int pid){
             if (prev == NULL)
                 return tmp->next;
             else if (tmp->next == NULL)
+            {
+                free(tmp->data->name);
+                free(tmp->data);
                 tmp = NULL;
+                prev->next = NULL;
+                free(tmp);
+                return head;
+            }
             else
             {
-            prev->next = tmp->next;
-            return head;
+                prev->next = tmp->next;
+                free(tmp->data->name);
+                free(tmp->data);
+                free(tmp);
+                return head;
             }
         }
         prev = tmp;
@@ -49,10 +59,9 @@ node* rm_node(node* head, int pid){
     }
 }
 
-
 void print_list(node* head){
     node* tmp = head;
-    int i =0;
+    int i = 0;
     while (tmp->next != NULL)
     {
         printf("[%d] ", tmp->data->index);
@@ -72,7 +81,6 @@ void free_list(node* head)
     node* nxt = tmp->next;
     while(tmp->next != NULL)
     {
-        printf("free: %s\n", tmp->data->name);
         free(tmp->data->name);
         free(tmp->data);
         free(tmp);
@@ -97,6 +105,16 @@ node* new_list()
 }
 
 
+int get_pid(node* head, int index){
+    node* tmp = head;
+    while(tmp != NULL)
+    {
+        if (tmp->data->index == index)
+            return tmp->data->pid;
+        tmp = tmp->next;
+    }
+    return -1;
+}
 
 //int main(){
 //    job j0 = {90123, "A", 1};

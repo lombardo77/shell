@@ -14,10 +14,7 @@
 #define ARG argv[0]
 
 void sigint_handler(int signo);
-void sigint_handle_child(int signo);
-
 void sigtstp_handler(int signo);
-void sigtstp_handle_child(int signo);
 
 //to do
 // 1. make sure i can free() malloced blocks
@@ -74,9 +71,17 @@ int main(){
             free_list(head);
             exit(127); 
         }
+        // this is kill
         else if(!strcmp(ARG, "kill"))
-        {
-            kill(atoi(argv[1]), 1);
+        {   
+            int killed_pid;
+            if (argv[1][0] == '%')
+                killed_pid = get_pid(head,  atoi(argv[1] + 1));
+            else
+                killed_pid = atoi(argv[1]);
+            kill(killed_pid, SIGTERM);
+            printf("[1] %d terminated by signal %d\n", killed_pid, SIGTERM);
+            head = rm_node(head, killed_pid);
         }
  
         // run program from command line
@@ -86,9 +91,6 @@ int main(){
 
             // child process
             if (pid == 0){         
-
-                signal(SIGINT, sigint_handle_child); 
-                signal(SIGTSTP, sigtstp_handle_child); 
                 //first check bin/*
                 snprintf(pth_buf, SIZE, "/bin/%s", ARG);
                 // from here on the program is replaced
@@ -159,25 +161,13 @@ int main(){
 
 // SIGINT handler
 void sigint_handler(int signo) {
-    printf("\n");
+    printf("\n> ");
     fflush(stdout);
 }
 
 // SIGSTP handler
 void sigtstp_handler(int signo) {
-    printf("\n");
-    fflush(stdout);
-}
-
-// SIGTSTP handles child
-void sigint_handle_child(int signo) {
-    printf("hello child\n");
-    fflush(stdout);
-}
-
-// SIGTSTP handles child
-void sigtstp_handle_child(int signo) {
-    printf("\n");
+    printf("\n> ");
     fflush(stdout);
 }
 
