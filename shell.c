@@ -13,20 +13,17 @@
 #define SIZE 256
 #define ARG argv[0]
 
+void sigchld_handler(int signo);
 void sigint_handler(int signo);
 void sigtstp_handler(int signo);
+pid_t pid;
+int bg = 0;
 
-//to do
-// 1. make sure i can free() malloced blocks
-// 2. the other shit!
-int main(){
+int main(void){
     char* buf = (char*)malloc(SIZE);
     char* pth_buf = (char*)malloc(SIZE);
-    int bg = 0;
     int i = 0;
 
-    //job a = {0, "null", 0};
-    //node head = {NULL, &a};
     node* head = new_list();
 
     // numbe of words in argv
@@ -35,6 +32,7 @@ int main(){
     //signals
     signal(SIGINT, sigint_handler);
     signal(SIGTSTP, sigtstp_handler);
+    //signal(SIGCHLD, sigchld_handler);
 
     int off = 0;
     //shell loop
@@ -71,6 +69,12 @@ int main(){
             free_list(head);
             exit(127); 
         }
+        if(!strcmp(ARG, "fg"))
+        {
+            printf("hello!\n");
+            kill(atoi(argv[1]), SIGCONT);
+            bg = 0;
+        }
         // this is kill
         else if(!strcmp(ARG, "kill"))
         {   
@@ -79,20 +83,22 @@ int main(){
                 killed_pid = get_pid(head,  atoi(argv[1] + 1));
             else
                 killed_pid = atoi(argv[1]);
+
             kill(killed_pid, SIGTERM);
             printf("[1] %d terminated by signal %d\n", killed_pid, SIGTERM);
             head = rm_node(head, killed_pid);
+            waitpid(killed_pid, 0, 0);
         }
  
         // run program from command line
         else{
             //first create child process
-            pid_t pid = fork();
-
+            pid = fork();
             // child process
-            if (pid == 0){         
+            if (pid == 0){    
                 //first check bin/*
                 snprintf(pth_buf, SIZE, "/bin/%s", ARG);
+                
                 // from here on the program is replaced
                 execv(pth_buf, argv);
                 //then check current directory
@@ -123,10 +129,6 @@ int main(){
             //parent process
             else
             {
-                if(!bg)
-                    waitpid(pid, 0, 0);
-                else
-                { // need to allocate on the heap!
                     i ++;
                     char* name = (char*)malloc(strlen(ARG));
                     strcpy(name, ARG);
@@ -141,6 +143,14 @@ int main(){
                     new_job->next = NULL;
                     new_job->data = child_job;
 
+                if(!bg)
+                {
+                    head = add(head, new_job);
+                    waitpid(pid, 0, WUNTRACED);
+                    head = rm_node(head, pid);
+                }
+                else
+                { // need to allocate on the heap!
                     head = add(head, new_job);
                     printf("[%d] %d\n",i, pid);
                 }
@@ -161,15 +171,19 @@ int main(){
 
 // SIGINT handler
 void sigint_handler(int signo) {
-    printf("\n> ");
+    printf("\n");
     fflush(stdout);
 }
 
 // SIGSTP handler
 void sigtstp_handler(int signo) {
-    printf("\n> ");
+    kill(pid, SIGSTOP);
     fflush(stdout);
 }
 
+// SIGCHLD handler
+void sigchld_handler(int signo){
+    printf("hello I just got a signal %d\n", signo);
+}
 
 
