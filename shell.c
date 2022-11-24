@@ -16,15 +16,20 @@
 void sigchld_handler(int signo);
 void sigint_handler(int signo);
 void sigtstp_handler(int signo);
-pid_t pid;
-int bg = 0;
+int fg_prc;
+/*
+ * job fg_prc = job{pid,name,index,TRUE,status};
+ * */
 
 int main(void){
     char* buf = (char*)malloc(SIZE);
     char* pth_buf = (char*)malloc(SIZE);
     int i = 0;
+    int bg = 0;
 
-    node* head = new_list();
+    node* jobs_lst = new_list();
+    node* bg_prc = new_list();
+    pid_t pid;
 
     // numbe of words in argv
     extern int words;
@@ -32,7 +37,7 @@ int main(void){
     //signals
     signal(SIGINT, sigint_handler);
     signal(SIGTSTP, sigtstp_handler);
-    //signal(SIGCHLD, sigchld_handler);
+    signal(SIGCHLD, sigchld_handler);
 
     int off = 0;
     //shell loop
@@ -43,7 +48,8 @@ int main(void){
         fflush(stdout);
         
         off = scanf("%[^\n]%*c", buf);
-        
+        fflush(stdin); 
+
         // pointer to argument array
         char **argv;
 
@@ -54,42 +60,55 @@ int main(void){
             bg = 1;
         else 
             bg = 0;
-        
+       
+        /* custom commands here:
+         * cd, jobs, exit, fg, bg, kill
+         * will put into functions for readability*/
+
         // this is "cd"
         if(!strcmp(ARG, "cd"))
             chdir(argv[1]);
         // this is "jobs" 
         else if(words == 1 && !strcmp(ARG, "jobs"))
-            print_list(head);
+            print_list(bg_prc);
         // this is "exit"
         else if (!strcmp(ARG, "exit"))
         {   
             free(buf);
             free(pth_buf);
-            free_list(head);
+            free_list(jobs_lst);
             exit(127); 
         }
-        if(!strcmp(ARG, "fg"))
+        else if(!strcmp(ARG, "fg"))
         {
-            printf("hello!\n");
-            kill(atoi(argv[1]), SIGCONT);
-            bg = 0;
+            int pid_tfg = atoi(argv[1]);
+            fg_prc = pid_tfg;
+            kill(pid_tfg, SIGCONT);
+            waitpid(pid_tfg, 0, 0);
         }
+        else if(!strcmp(ARG, "bg"))
+        {
+            int pid_tfg = atoi(argv[1]);
+            kill(pid_tfg, SIGCONT);
+            //then change status to running
+            bg = 1;
+        }
+
         // this is kill
         else if(!strcmp(ARG, "kill"))
         {   
             int killed_pid;
             if (argv[1][0] == '%')
-                killed_pid = get_pid(head,  atoi(argv[1] + 1));
+                killed_pid = get_pid(bg_prc,  atoi(argv[1] + 1));
             else
                 killed_pid = atoi(argv[1]);
 
             kill(killed_pid, SIGTERM);
             printf("[1] %d terminated by signal %d\n", killed_pid, SIGTERM);
-            head = rm_node(head, killed_pid);
+            bg_prc = rm_node(bg_prc, killed_pid);
             waitpid(killed_pid, 0, 0);
         }
- 
+        
         // run program from command line
         else{
             //first create child process
@@ -99,7 +118,9 @@ int main(void){
                 //first check bin/*
                 snprintf(pth_buf, SIZE, "/bin/%s", ARG);
                 
-                // from here on the program is replaced
+                // from here on the program is replaced only if there is a 
+                // program in /bin/*
+
                 execv(pth_buf, argv);
                 //then check current directory
                 if (errno == 2)
@@ -120,7 +141,6 @@ int main(void){
                     free(pth_buf);
                     freeargv(argv);
                     free(argv);
-
                     perror("command not found");
                 }
                 
@@ -129,29 +149,20 @@ int main(void){
             //parent process
             else
             {
-                    i ++;
-                    char* name = (char*)malloc(strlen(ARG));
-                    strcpy(name, ARG);
-
-                    job* child_job = (job*)malloc(sizeof(job));
-                    child_job->pid = pid;
-                    child_job->name = name;
-                    child_job->index = i;
-
-                    node* new_job = malloc(sizeof(node));
-
-                    new_job->next = NULL;
-                    new_job->data = child_job;
+                i ++;
+                node* new_job = newjobnode(i, ARG, pid, bg, 1);
+                node* new_job_bg = newjobnode(i, ARG, pid, bg, 1);
 
                 if(!bg)
                 {
-                    head = add(head, new_job);
+                    fg_prc = pid;
+                    jobs_lst = add(jobs_lst, new_job);
                     waitpid(pid, 0, WUNTRACED);
-                    head = rm_node(head, pid);
                 }
                 else
                 { // need to allocate on the heap!
-                    head = add(head, new_job);
+                    bg_prc = add(bg_prc, new_job);
+                    jobs_lst = add(jobs_lst, new_job_bg);
                     printf("[%d] %d\n",i, pid);
                 }
                 fflush(stdout);
@@ -171,19 +182,20 @@ int main(void){
 
 // SIGINT handler
 void sigint_handler(int signo) {
-    printf("\n");
+    write(STDOUT_FILENO, "\n", 1);
+    kill(fg_prc, SIGTERM);
     fflush(stdout);
 }
 
 // SIGSTP handler
 void sigtstp_handler(int signo) {
-    kill(pid, SIGSTOP);
+    write(STDOUT_FILENO, "\n", 1);
+    kill(fg_prc, SIGSTOP);
     fflush(stdout);
 }
 
-// SIGCHLD handler
-void sigchld_handler(int signo){
-    printf("hello I just got a signal %d\n", signo);
-}
 
+void sigchld_handler(int signo){
+    printf("I got a signal: %d\n", getpid());
+}
 

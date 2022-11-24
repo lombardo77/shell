@@ -1,11 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <string.h>
+#define RUNNING 1
+#define STOPPED -1
 
 typedef struct job{
     pid_t pid;
     char* name;
     int index;
+    int bg;
+    int status; // 1 if running, 0 if done, -1 if stopped
 }job;
 
  
@@ -66,13 +70,19 @@ void print_list(node* head){
     {
         printf("[%d] ", tmp->data->index);
         printf("%s ", tmp->data->name);
-        printf("pid: %d \n", tmp->data->pid);
+        printf("pid: %d ", tmp->data->pid);
+        printf(tmp->data->status == RUNNING ? 
+                "status: Running ": "status: Stopped ");
+        printf(tmp->data->bg == 1 ? "bg: True\n": "bg: False\n");
         tmp = tmp->next;
         i++;
     }
         printf("[%d] ", tmp->data->index);
         printf("%s ", tmp->data->name);
-        printf("pid: %d \n", tmp->data->pid);
+        printf("pid: %d ", tmp->data->pid);
+        printf(tmp->data->status == RUNNING ?
+                "status: Running ": "status: Stopped ");
+        printf(tmp->data->bg == 1 ? "bg: True\n": "bg: False\n");
 }
 
 void free_list(node* head)
@@ -98,6 +108,7 @@ node* new_list()
     a->pid = 0;
     a->name = malloc(1);
     a->index = 0;
+    a->bg = -1;
     node* head = malloc(sizeof(node));
     head->next = NULL;
     head->data = a;
@@ -116,24 +127,19 @@ int get_pid(node* head, int index){
     return -1;
 }
 
-//int main(){
-//    job j0 = {90123, "A", 1};
-//    node head = {NULL, &j0};
-//
-//    job j1 = {2981, "B", 2}; 
-//    node n1 = {NULL, &j1}; 
-//    add(&head, &n1);
-//    
-//    job j2 = {2231, "C", 3}; 
-//    node n2 = {NULL, &j2}; 
-//    add(&head, &n2);
-//    
-//    job j3 = {23434, "d", 4}; 
-//    node n3 = {NULL, &j3}; 
-//    add(&head, &n3);
-//
-//
-//    print_list(&head);
-//
-//
-//}
+node* newjobnode(int i, char* arg, pid_t pid, int bg, int status){
+    char* name = (char*)malloc(strlen(arg) + 1 );
+    strcpy(name, arg);
+
+    job* child_job = (job*)malloc(sizeof(job));
+    child_job->pid = pid;
+    child_job->name = name;
+    child_job->index = i;
+    child_job->bg = bg;
+    child_job->status = status;
+
+    node* new_job = malloc(sizeof(node));
+
+    new_job->next = NULL;
+    new_job->data = child_job;
+}
