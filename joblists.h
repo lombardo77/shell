@@ -17,11 +17,13 @@ typedef struct node{
 
 }node;
 
+node* getnode(node* head, job* job);
+job* getjob(node* head, int pid);
 node* newjobnode(int i, char* ARG, pid_t pid, int bg, int status);
 node* add(node* head, node* data);
 node* rm_node(node* head, int pid);
 void print_list(node* head);
 void free_list(node* head);
 node* new_list();
-int get_pid(node* head, int pid);
+int getpidbi(node* head, int pid);
 #endif
