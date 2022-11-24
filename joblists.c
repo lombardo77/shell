@@ -35,27 +35,26 @@ node* rm_node(node* head, int pid){
     node* tmp = head;
     node* prev = NULL;
 
-    while(tmp != NULL)
-    {
-        if (tmp->data->pid == pid)
-        {
-            if (prev == NULL)
-                return tmp->next;
-            else if (tmp->next == NULL)
-            {
+    while(tmp != NULL) {
+        if (tmp->data->pid == pid){
+            if (prev == NULL){
                 free(tmp->data->name);
                 free(tmp->data);
+                free(tmp);
+                return tmp->next;
+            }
+            else if (tmp->next == NULL) {
+                free(tmp->data->name);
+                free(tmp->data);
+                free(tmp);
                 tmp = NULL;
                 prev->next = NULL;
-                free(tmp);
                 return head;
-            }
-            else
-            {
-                prev->next = tmp->next;
+            } else{   
                 free(tmp->data->name);
                 free(tmp->data);
                 free(tmp);
+                prev->next = tmp->next;
                 return head;
             }
         }
