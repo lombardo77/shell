@@ -1,16 +1,18 @@
 CFLAGS= -g -Wall -Wvla -fsanitize=address 
+LINKED= shell.o buffer_manipulation.o joblists.o  
 
 all:
 	make allobj
-	gcc shell.o buffer_manipulation.o joblists.o -o shell
+	gcc $(LINKED) -o shell
 
 allobj: buffer_manipulation.c shell.c joblists.c
 	gcc buffer_manipulation.c -c 
 	gcc shell.c -c
 	gcc joblists.c -c
 
-debug:
+debug: buffer_manipulation.c shell.c joblists.c
 	make allobj
-	gcc $(CFLAGS) shell.o buffer_manipulation.o -o shell
+	gcc $(CFLAGS) $(LINKED)-o shell
 
-
+clean:
+	rm *.o

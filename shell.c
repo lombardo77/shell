@@ -30,6 +30,9 @@ job* fg_prc;
 node* jobs_lst;
 node* bg_prc;
 
+volatile int  sigtstp;
+volatile int sigint;
+
 int main(void){
     char* buf = (char*)malloc(SIZE);
     char* pth_buf = (char*)malloc(SIZE);
@@ -52,6 +55,22 @@ int main(void){
     //shell loop
     while(1)
     {
+        if (sigtstp){
+            // sets the status of the foregound process to STOPPED and bg to 1
+            node* new_bg_node = newjobnode(
+            fg_prc->index, fg_prc->name, fg_prc->pid, 
+            BG, STOPPED);
+            bg_prc = add(bg_prc, new_bg_node);
+            print_list(bg_prc);
+            fg_prc = NULL;
+            fflush(stdout);
+            sigtstp = 0;
+        }
+        if (sigint){
+            rm_node(bg_prc, fg_prc->pid);
+            sigint = 0;
+        }
+
         //command line prompt "> "
         printf("> ");
         fflush(stdout);
@@ -69,11 +88,9 @@ int main(void){
             bg = BG;
         else 
             bg = FG;
-       
         /* custom commands here:
          * cd, jobs, exit, fg, bg, kill
          * will put into functions for readability*/
-
         // this is "cd"
         if(!strcmp(ARG, "cd"))
             chdir(argv[1]);
@@ -140,15 +157,14 @@ int main(void){
                 i ++;
                 node* new_job = newjobnode(i, ARG, pid, bg, RUNNING);
                 node* new_job_bg = newjobnode(i, ARG, pid, bg, RUNNING);
+                jobs_lst = add(jobs_lst, new_job);
 
-                if(!bg){
-                    jobs_lst = add(jobs_lst, new_job);
+                if(!bg){ //bg is 0
                     fg_prc = getjob(jobs_lst, pid);
-                    printf("%d is running\n", fg_prc->pid);
+                    printf("%d is running in fg\n", fg_prc->pid);
                     waitpid(pid, 0, WUNTRACED);
-                } else{ // need to allocate on the heap!
+                } else{ // bg is 1
                     bg_prc = add(bg_prc, new_job_bg);
-                    jobs_lst = add(jobs_lst, new_job);
                     printf("[%d] %d\n",i, pid);
                 }
                 fflush(stdout);
@@ -162,35 +178,22 @@ int main(void){
     
     free(buf);
     free(pth_buf);
-
     return 0;
 }
 
 // SIGINT handler
 void sigint_handler(int signo) {
     write(STDOUT_FILENO, "\n", 1);
-    printf("killing %d\n", fg_prc->pid);
     kill(fg_prc->pid, SIGTERM);
-    rm_node(bg_prc, fg_prc->pid);
     fflush(stdout);
+    sigint = 1;
 }
 
 // SIGSTP handler
 void sigtstp_handler(int signo) {
     write(STDOUT_FILENO, "\n", 1);
-    printf("stopping %d", fg_prc->pid);
-    /*sends SIGSTOP to the foregound process, effectively putting it in the
-    background*/
     kill(fg_prc->pid, SIGSTOP);
-
-    // sets the status of the foregound process to STOPPED and bg to 1
-    fg_prc->status = STOPPED;
-    fg_prc->bg = BG;
-
-    //
-    add(bg_prc, getnode(jobs_lst, fg_prc));
-    fg_prc = NULL;
-    fflush(stdout);
+    sigtstp = 1;
 }
 
 //parses arg1 and kills pid
@@ -217,6 +220,9 @@ void fgcommand(char* arg1){
     fg_prc->bg = FG;
     fg_prc->status = RUNNING;
 
+    //remove fg_prc from background list
+    bg_prc = rm_node(bg_prc, fg_prc->pid);
+
     // continue the process
     kill(pid_tfg, SIGCONT);
 
@@ -233,6 +239,7 @@ void bgcommand(char* arg1){
     kill(pid_tfg, SIGCONT);
     
     // change status and bg
-    getjob(jobs_lst, pid_tfg)->bg = BG;
-    getjob(jobs_lst, pid_tfg)->status = RUNNING;
+    getjob(bg_prc, pid_tfg)->bg = BG;
+    getjob(bg_prc, pid_tfg)->status = RUNNING;
 }
+
