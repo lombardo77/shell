@@ -11,7 +11,7 @@
 #include "joblists.h"
 
 #define SIZE 256
-#define ARG argv[0]
+#define ARG0 argv[0]
 
 #define RUNNING 1
 #define STOPPED -1
@@ -25,24 +25,29 @@ void fgcommand(char* arg1);
 void killcommand(char* arg1);
 void sigint_handler(int signo);
 void sigtstp_handler(int signo);
+void stop_fgprc();
+void term_fgprc();
 
 job* fg_prc;
 node* jobs_lst;
-node* bg_prc;
+node* active_jobs;
 
 volatile int  sigtstp;
 volatile int sigint;
 
-int main(void){
+int main(void) 
+{
     char* buf = (char*)malloc(SIZE);
     char* pth_buf = (char*)malloc(SIZE);
+    char **argv;
     int i = 0;
     int bg = 0;
 
     //job lists (bg and all jobs)
     jobs_lst = new_list();
-    bg_prc = new_list();
+    active_jobs = new_list();
     pid_t pid;
+    fg_prc = NULL;
 
     // number of words in argv
     extern int words;
@@ -53,38 +58,22 @@ int main(void){
 
     int off = 0;
     //shell loop
-    while(1)
-    {
-        if (sigtstp){
-            // sets the status of the foregound process to STOPPED and bg to 1
-            node* new_bg_node = newjobnode(
-            fg_prc->index, fg_prc->name, fg_prc->pid, 
-            BG, STOPPED);
-            bg_prc = add(bg_prc, new_bg_node);
-            print_list(bg_prc);
-            fg_prc = NULL;
-            fflush(stdout);
-            sigtstp = 0;
-        }
-        if (sigint){
-            rm_node(bg_prc, fg_prc->pid);
-            sigint = 0;
-        }
+    while (1) {
+        if (sigtstp)
+            stop_fgprc();
+        if (sigint)
+            term_fgprc();
 
         //command line prompt "> "
         printf("> ");
         fflush(stdout);
-        
         off = scanf("%[^\n]%*c", buf);
-        fflush(stdin); 
+        fflush(stdin);
 
         // pointer to argument array
-        char **argv;
-
-        // generate argument array with raw command line input
         argv = gen_argv(buf);
 
-        if(words > 1 && !strcmp(argv[1], "&"))
+        if (words > 1 && !strcmp(argv[1], "&"))
             bg = BG;
         else 
             bg = FG;
@@ -92,57 +81,48 @@ int main(void){
          * cd, jobs, exit, fg, bg, kill
          * will put into functions for readability*/
         // this is "cd"
-        if(!strcmp(ARG, "cd"))
+        if (!strcmp(ARG0, "cd"))
             chdir(argv[1]);
-        // this is "jobs" 
-        else if(words == 1 && !strcmp(ARG, "jobs"))
-            print_list(bg_prc);
-        // this is "exit"
-        else if (!strcmp(ARG, "exit")){   
+        else if (words == 1 && !strcmp(ARG0, "jobs"))
+            print_list(active_jobs);
+        else if (words == 1 && !strcmp(ARG0, "all_jobs"))
+            print_list(jobs_lst);
+        else if (!strcmp(ARG0, "exit")) {   
             free(buf);
             free(pth_buf);
-            free_list(jobs_lst);
-            exit(127); 
-        }
-        //fg puts first arg into foreground
-        else if(!strcmp(ARG, "fg")){
-            fgcommand(argv[1]);
-        }
-        //take stopped process and run it in the backgroud
-        else if(!strcmp(ARG, "bg")){
-            bgcommand(argv[1]);
-        }
+            freeargv(argv);
+            free(argv);
+            
+            freelnaj(jobs_lst);
+            freejob(active_jobs->data);
+            freelno(active_jobs);
 
-        // this is kill
-        else if(!strcmp(ARG, "kill")){   
+            exit(127); 
+        } else if (!strcmp(ARG0, "fg"))
+            fgcommand(argv[1]);
+          else if (!strcmp(ARG0, "bg"))
+            bgcommand(argv[1]);
+          else if (!strcmp(ARG0, "kill"))   
             killcommand(argv[1]);
-        }
-        
-        // run program from command line
-        else{
-            //first create child process
+          else {
             pid = fork();
             // child process
-            if (pid == 0){    
+            if (pid == 0) {    
                 //first check bin/*
-                snprintf(pth_buf, SIZE, "/bin/%s", ARG);
-                
-                // from here on the program is replaced only if there is a 
-                // program in /bin/*
-
+                snprintf(pth_buf, SIZE, "/bin/%s", ARG0);
                 execv(pth_buf, argv);
                 //then check current directory
-                if (errno == 2){
-                    snprintf(pth_buf, SIZE, "./%s", ARG);
+                if (errno == 2) {
+                    snprintf(pth_buf, SIZE, "./%s", ARG0);
                     execv(pth_buf, argv);
                 } 
                 // finally check given path
-                if (errno == 2){
+                if (errno == 2) {
                     execv(argv[0], argv);
                 }
 
                //if nothing works, then print error 
-                if (errno == 2){
+                if (errno == 2) {
                     free(buf);
                     free(pth_buf);
                     freeargv(argv);
@@ -151,29 +131,31 @@ int main(void){
                 }
                 
                 exit(127);
-            } 
-            //parent process
-            else{
+            } else {
                 i ++;
-                node* new_job = newjobnode(i, ARG, pid, bg, RUNNING);
-                node* new_job_bg = newjobnode(i, ARG, pid, bg, RUNNING);
+                job* curjob = createjob(i, ARG0, pid, bg, RUNNING);
+                node* new_job = createnode(curjob);
+                node* new_job_bg = createnode(curjob);
                 jobs_lst = add(jobs_lst, new_job);
+                active_jobs = add(active_jobs, new_job_bg);
+                fg_prc = curjob;
 
-                if(!bg){ //bg is 0
-                    fg_prc = getjob(jobs_lst, pid);
-                    printf("%d is running in fg\n", fg_prc->pid);
+                if (!bg) { //bg is false, running in fg
                     waitpid(pid, 0, WUNTRACED);
-                } else{ // bg is 1
-                    bg_prc = add(bg_prc, new_job_bg);
+                    if (!sigtstp) { // if it did not stop, then it finished.
+                        printf("Finished [%d]\n", curjob->pid);
+                        curjob->status = DONE;
+                        active_jobs = rm_node(active_jobs, fg_prc->pid);
+                    }
+                } else  // bg is 1, will run in background
                     printf("[%d] %d\n",i, pid);
-                }
                 fflush(stdout);
-                freeargv(argv); 
-                free(argv);
             }
         }
         if (off != 1)
             break;
+        freeargv(argv); 
+        free(argv);
     }
     
     free(buf);
@@ -182,64 +164,89 @@ int main(void){
 }
 
 // SIGINT handler
-void sigint_handler(int signo) {
-    write(STDOUT_FILENO, "\n", 1);
-    kill(fg_prc->pid, SIGTERM);
+void sigint_handler(int signo) 
+{
+    write(STDOUT_FILENO, "\n> ", 1);
+    if (fg_prc != NULL) 
+        kill(fg_prc->pid, SIGTERM);
     fflush(stdout);
     sigint = 1;
 }
 
 // SIGSTP handler
-void sigtstp_handler(int signo) {
-    write(STDOUT_FILENO, "\n", 1);
-    kill(fg_prc->pid, SIGSTOP);
+void sigtstp_handler(int signo) 
+{
+    write(STDOUT_FILENO, "\n> ", 1);
+    if (fg_prc != NULL)
+        kill(fg_prc->pid, SIGSTOP);
     sigtstp = 1;
 }
 
 //parses arg1 and kills pid
-void killcommand(char* arg1){
+void killcommand(char* arg1) 
+{
     int killed_pid;
     if (arg1[0] == '%')
-        killed_pid = getpidbi(bg_prc,  atoi(arg1 + 1));
+        killed_pid = getpidbi(active_jobs,  atoi(arg1 + 1));
     else
         killed_pid = atoi(arg1);
-
+    if (!is_running(getjob(active_jobs, killed_pid)))
+        kill(killed_pid, SIGCONT);
+    
     kill(killed_pid, SIGTERM);
     printf("[1] %d terminated by signal %d\n", killed_pid, SIGTERM);
-    bg_prc = rm_node(bg_prc, killed_pid);
-    waitpid(killed_pid, 0, 0);
+    active_jobs = rm_node(active_jobs, killed_pid);
+    waitpid(killed_pid, 0, WUNTRACED);
 }
 
 // foregrounds process id arg1
-void fgcommand(char* arg1){
+void fgcommand(char* arg1) 
+{
     //first arg to int
     int pid_tfg = atoi(arg1);
 
     //get process from jobs list to set fg variable
     fg_prc = getjob(jobs_lst, pid_tfg);
+
+    if (fg_prc->status == STOPPED)
+        kill(pid_tfg, SIGCONT);
+
     fg_prc->bg = FG;
     fg_prc->status = RUNNING;
 
-    //remove fg_prc from background list
-    bg_prc = rm_node(bg_prc, fg_prc->pid);
-
-    // continue the process
-    kill(pid_tfg, SIGCONT);
-
     //wait for the process to end
     waitpid(pid_tfg, 0, WUNTRACED);
-
 }
 
 //backgrounds process id arg1
-void bgcommand(char* arg1){
+void bgcommand(char* arg1) 
+{
     int pid_tfg = atoi(arg1);
 
     // continue the process
     kill(pid_tfg, SIGCONT);
     
     // change status and bg
-    getjob(bg_prc, pid_tfg)->bg = BG;
-    getjob(bg_prc, pid_tfg)->status = RUNNING;
+    getjob(active_jobs, pid_tfg)->bg = BG;
+    getjob(active_jobs, pid_tfg)->status = RUNNING;
 }
 
+
+// stops fg process
+void stop_fgprc() 
+{
+    if (fg_prc != NULL) {
+        fg_prc->status = STOPPED;
+        fg_prc->bg = BG;
+    }
+    fflush(stdout);
+    sigtstp = 0;
+}
+
+// terminates fg process
+void term_fgprc() 
+{
+    if (fg_prc != NULL)
+        active_jobs = rm_node(active_jobs, fg_prc->pid);
+    sigint = 0;
+}
