@@ -25,8 +25,10 @@ void fgcommand(char* arg1);
 void killcommand(char* arg1);
 void sigint_handler(int signo);
 void sigtstp_handler(int signo);
+void sigchld_handler(int signo);
 void stop_fgprc();
 void term_fgprc();
+void segfault();
 
 job* fg_prc;
 node* jobs_lst;
@@ -34,6 +36,9 @@ node* active_jobs;
 
 volatile int  sigtstp;
 volatile int sigint;
+volatile int sigsegv;
+
+int status;
 
 int main(void) 
 {
@@ -46,8 +51,9 @@ int main(void)
     //job lists (bg and all jobs)
     jobs_lst = new_list();
     active_jobs = new_list();
-    pid_t pid;
+    
     fg_prc = NULL;
+    pid_t pid;
 
     // number of words in argv
     extern int words;
@@ -55,6 +61,7 @@ int main(void)
     //signals
     signal(SIGINT, sigint_handler);
     signal(SIGTSTP, sigtstp_handler);
+    signal(SIGCHLD, sigchld_handler);
 
     int off = 0;
     //shell loop
@@ -63,6 +70,8 @@ int main(void)
             stop_fgprc();
         if (sigint)
             term_fgprc();
+        if (sigsegv)
+            segfault();
 
         //command line prompt "> "
         printf("> ");
@@ -73,7 +82,7 @@ int main(void)
         // pointer to argument array
         argv = gen_argv(buf);
 
-        if (words > 1 && !strcmp(argv[1], "&"))
+        if (words > 1 && !strcmp(argv[words - 1], "&"))
             bg = BG;
         else 
             bg = FG;
@@ -85,8 +94,6 @@ int main(void)
             chdir(argv[1]);
         else if (words == 1 && !strcmp(ARG0, "jobs"))
             print_list(active_jobs);
-        else if (words == 1 && !strcmp(ARG0, "all_jobs"))
-            print_list(jobs_lst);
         else if (!strcmp(ARG0, "exit")) {   
             free(buf);
             free(pth_buf);
@@ -107,15 +114,12 @@ int main(void)
           else {
             pid = fork();
             // child process
-            if (pid == 0) {    
+            if (pid == 0) {
+                setpgid(pid, pid);   
                 //first check bin/*
                 snprintf(pth_buf, SIZE, "/bin/%s", ARG0);
                 execv(pth_buf, argv);
-                //then check current directory
-                if (errno == 2) {
-                    snprintf(pth_buf, SIZE, "./%s", ARG0);
-                    execv(pth_buf, argv);
-                } 
+                
                 // finally check given path
                 if (errno == 2) {
                     execv(argv[0], argv);
@@ -133,22 +137,26 @@ int main(void)
                 exit(127);
             } else {
                 i ++;
-                job* curjob = createjob(i, ARG0, pid, bg, RUNNING);
+                //lists share jobs, not nodes
+                job* curjob = createjob(i, ARG0, pid, bg, RUNNING, buf);
                 node* new_job = createnode(curjob);
                 node* new_job_bg = createnode(curjob);
+                
+                //add to lists
                 jobs_lst = add(jobs_lst, new_job);
                 active_jobs = add(active_jobs, new_job_bg);
-                fg_prc = curjob;
 
+                //set fgjob
+                fg_prc = curjob;
+        
                 if (!bg) { //bg is false, running in fg
-                    waitpid(pid, 0, WUNTRACED);
+                    waitpid(pid, &status, WUNTRACED);
                     if (!sigtstp) { // if it did not stop, then it finished.
-                        printf("Finished [%d]\n", curjob->pid);
                         curjob->status = DONE;
                         active_jobs = rm_node(active_jobs, fg_prc->pid);
                     }
                 } else  // bg is 1, will run in background
-                    printf("[%d] %d\n",i, pid);
+                    printf("[%d] %d running in background\n",i, pid);
                 fflush(stdout);
             }
         }
@@ -167,19 +175,34 @@ int main(void)
 void sigint_handler(int signo) 
 {
     write(STDOUT_FILENO, "\n> ", 1);
-    if (fg_prc != NULL) 
-        kill(fg_prc->pid, SIGTERM);
+    if (fg_prc != NULL && 
+            fg_prc->bg == FG && 
+            fg_prc->status == RUNNING) {
+        kill(fg_prc->pid, SIGINT);
+        sigint = 1;
+        waitpid(fg_prc->pid, 0, 0);
+    }
     fflush(stdout);
-    sigint = 1;
 }
 
 // SIGSTP handler
 void sigtstp_handler(int signo) 
 {
     write(STDOUT_FILENO, "\n> ", 1);
-    if (fg_prc != NULL)
+    if (fg_prc != NULL && 
+            fg_prc->bg == FG && 
+            fg_prc->status == RUNNING)
         kill(fg_prc->pid, SIGSTOP);
     sigtstp = 1;
+}
+
+//SIGSEGV handler
+void sigchld_handler(int signo)
+{
+    if (status == SIGSEGV) {
+        sigsegv = 1;
+        status = 0;
+    }
 }
 
 //parses arg1 and kills pid
@@ -203,7 +226,11 @@ void killcommand(char* arg1)
 void fgcommand(char* arg1) 
 {
     //first arg to int
-    int pid_tfg = atoi(arg1);
+    int pid_tfg;
+    if (arg1[0] == '%') 
+        pid_tfg = getpidbi(active_jobs, atoi(arg1 + 1));
+    else
+        pid_tfg = atoi(arg1);
 
     //get process from jobs list to set fg variable
     fg_prc = getjob(jobs_lst, pid_tfg);
@@ -221,21 +248,28 @@ void fgcommand(char* arg1)
 //backgrounds process id arg1
 void bgcommand(char* arg1) 
 {
-    int pid_tfg = atoi(arg1);
+    int pid_tfg;
+    if (arg1[0] == '%') 
+        pid_tfg = getpidbi(active_jobs, atoi(arg1 + 1));
+    else
+        pid_tfg = atoi(arg1);
+
 
     // continue the process
     kill(pid_tfg, SIGCONT);
     
     // change status and bg
-    getjob(active_jobs, pid_tfg)->bg = BG;
-    getjob(active_jobs, pid_tfg)->status = RUNNING;
+    fg_prc = getjob(jobs_lst, pid_tfg);
+
+    fg_prc->bg = BG;
+    fg_prc->status = RUNNING;
 }
 
 
 // stops fg process
 void stop_fgprc() 
 {
-    if (fg_prc != NULL) {
+    if (fg_prc != NULL && fg_prc->bg == FG) {
         fg_prc->status = STOPPED;
         fg_prc->bg = BG;
     }
@@ -246,7 +280,18 @@ void stop_fgprc()
 // terminates fg process
 void term_fgprc() 
 {
-    if (fg_prc != NULL)
+    if (fg_prc != NULL && fg_prc->bg == FG) {
+            printf("[%d] %d terminated with signal %d\n", 
+            fg_prc->index, fg_prc->pid, SIGINT);
+    }
+
         active_jobs = rm_node(active_jobs, fg_prc->pid);
     sigint = 0;
+}
+
+// terminated with segfault
+void segfault() 
+{
+    printf("Segmentation fault\n");
+    sigsegv = 0;
 }

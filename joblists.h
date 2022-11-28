@@ -4,6 +4,7 @@
 typedef struct job{
     pid_t pid;
     char* name;
+    char* path;
     int index;
     int bg;
     int status;
@@ -22,7 +23,7 @@ void fnaj(node* nodein);
 void freejob(job* jobin);
 void freenode(node* nodein);
 int is_running(job* job_in);
-job* createjob(int i, char* arg, pid_t, int bg, int status);
+job* createjob(int i, char* arg, pid_t, int bg, int status, char* path);
 node* createnode(job* job_in);
 node* getnode(node* head, job* job);
 job* getjob(node* head, int pid);

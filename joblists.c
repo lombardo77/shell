@@ -9,6 +9,7 @@
 typedef struct job {
     pid_t pid;
     char* name;
+    char* path;
     int index;
     int bg;
     int status; // 1 if running, 0 if done, -1 if stopped
@@ -35,22 +36,24 @@ node* add(node* head, node* data)
 void print_list(node* head) {
     node* tmp = head;
     while (tmp->next != NULL) {
-        printf("[%d] ", tmp->data->index);
-        printf("%s ", tmp->data->name);
-        printf("pid: %d ", tmp->data->pid);
-        printf(tmp->data->status == RUNNING ? 
-                "status: Running ": 
-                (tmp->data->status == STOPPED ? 
-                 "status : Stopped ": "status: finished "));
-        printf(tmp->data->bg == 1 ? "bg: True\n": "bg: False\n");
+        if (tmp->data->index) {
+            printf("[%d] ", tmp->data->index);
+            printf("%d ", tmp->data->pid);
+            printf(tmp->data->status == RUNNING ? 
+                    "Running ": 
+                    (tmp->data->status == STOPPED ? 
+                     "Stopped ": "Finished "));
+            printf("%s\n", tmp->data->path);
+        }
         tmp = tmp->next;
     }
+    if (tmp->data->index) {
         printf("[%d] ", tmp->data->index);
-        printf("%s ", tmp->data->name);
-        printf("pid: %d ", tmp->data->pid);
+        printf("%d ", tmp->data->pid);
         printf(tmp->data->status == RUNNING ?
-                "status: Running ": "status: Stopped ");
-        printf(tmp->data->bg == 1 ? "bg: True\n": "bg: False\n");
+                "Running ": "Stopped ");
+        printf("%s\n", tmp->data->path);
+    }
 }
 
 //frees node but not job
@@ -63,6 +66,7 @@ void freenode(node* nodein)
 void freejob(job* jobin)
 {
     free(jobin->name);
+    free(jobin->path);
     free(jobin);
 }
 
@@ -130,9 +134,14 @@ node* new_list()
 {
     job* a = malloc(sizeof(job));
     a->pid = 0;
+
     char* name = malloc(5);
     strcpy(name, "head");
+    char* path = malloc(5);
+    strcpy(path, "./");
+
     a->name = name;
+    a->path = path;
     a->index = 0;
     a->bg = -1;
     a->status = DONE;
@@ -181,13 +190,17 @@ node* getnode(node* head, job* job)
 }
 
 // new job
-job* createjob(int i, char* arg, pid_t pid, int bg, int status)
+job* createjob(int i, char* arg, pid_t pid, int bg, int status, char* path_in)
 {   
-    char* name = (char*)malloc(strlen(arg) + 1 );
+    char* name = malloc(strlen(arg) + 1 );
+    char* path = malloc(strlen(path) + 1 );
     strcpy(name, arg);
+    strcpy(path, path_in);
+    
     job* new_job = (job*)malloc(sizeof(job));
     new_job->pid = pid;
     new_job->name = name;
+    new_job->path = path;
     new_job->index = i;
     new_job->bg = bg;
     new_job->status = status;
