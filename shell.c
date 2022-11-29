@@ -29,6 +29,7 @@ void sigchld_handler(int signo);
 void stop_fgprc();
 void term_fgprc();
 void segfault();
+void rmand(char** argv);
 
 job* fg_prc;
 node* jobs_lst;
@@ -37,6 +38,7 @@ node* active_jobs;
 volatile int  sigtstp;
 volatile int sigint;
 volatile int sigsegv;
+volatile int child_err;
 
 int status;
 
@@ -72,6 +74,11 @@ int main(void)
             term_fgprc();
         if (sigsegv)
             segfault();
+        if (child_err) {
+            active_jobs = rm_node(active_jobs, fg_prc->pid);
+            child_err = 0;
+        }
+        
 
         //command line prompt "> "
         printf("> ");
@@ -82,8 +89,10 @@ int main(void)
         // pointer to argument array
         argv = gen_argv(buf);
 
-        if (words > 1 && !strcmp(argv[words - 1], "&"))
+        if (words > 1 && !strcmp(argv[words - 1], "&")) {
             bg = BG;
+            rmand(argv);
+        }
         else 
             bg = FG;
         /* custom commands here:
@@ -155,8 +164,10 @@ int main(void)
                         curjob->status = DONE;
                         active_jobs = rm_node(active_jobs, fg_prc->pid);
                     }
-                } else  // bg is 1, will run in background
+                } else {  // bg is 1, will run in background
                     printf("[%d] %d running in background\n",i, pid);
+                }
+                
                 fflush(stdout);
             }
         }
@@ -170,6 +181,20 @@ int main(void)
     free(pth_buf);
     return 0;
 }
+
+void rmand(char** argv)
+{
+    int i = 0;
+    while (argv[i] != NULL) {
+        if (argv[i][0] == '&') {
+            argv[i] = NULL;
+            free(argv[i]);
+            break;
+        }
+        i ++;
+    }
+}
+
 
 // SIGINT handler
 void sigint_handler(int signo) 
@@ -203,6 +228,9 @@ void sigchld_handler(int signo)
         sigsegv = 1;
         status = 0;
     }
+    waitpid(-1 ,&status, WNOHANG);
+    if (status == 32512) 
+        child_err = 1;
 }
 
 //parses arg1 and kills pid
