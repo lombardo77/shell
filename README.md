@@ -1,2 +1,2 @@
 # shell
-Toy Unix shell implemented in C. 
+Toy Unix shell implemented in C.
